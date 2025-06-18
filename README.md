@@ -1,2 +1,2 @@
 # citas-app-backend
-backend de React
+Backend de React
