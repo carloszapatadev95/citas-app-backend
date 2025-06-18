@@ -1,0 +1,19 @@
+# Dependencias
+# La carpeta node_modules contiene miles de archivos que se pueden reinstalar con 'npm install'
+node_modules
+
+# Archivos de Log
+# Los logs pueden contener información sensible y no pertenecen al control de versiones.
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Variables de Entorno
+# ¡MUY IMPORTANTE! Este archivo contiene secretos como contraseñas de la base de datos.
+# Nunca debe subirse a un repositorio público.
+.env
+
+# Archivos de sistema operativo
+# Archivos generados por macOS y Windows que no son parte del código.
+.DS_Store
+Thumbs.db
