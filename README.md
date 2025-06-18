@@ -1,2 +1,2 @@
 # citas-app-backend
-backend de readct
+backend de React
