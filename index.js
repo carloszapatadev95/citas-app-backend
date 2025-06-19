@@ -1,48 +1,56 @@
-// backend/index.js (ACTUALIZADO CON SEQUELIZE)
+// =================================================================
+// ARCHIVO DE ENTRADA PRINCIPAL DEL BACKEND (index.js)
+// =================================================================
 
+// 1. Cargar las variables de entorno ANTES que cualquier otra cosa.
+import './config.js';
+
+// 2. Importar las librerías necesarias
 import express from 'express';
 import cors from 'cors';
 
-// 1. Importar Sequelize y la configuración de la base de datos
-import sequelize from './config/database.js';
+// 3. Importar la instancia de Sequelize desde el archivo central de modelos.
+// ESTA ES LA ÚNICA LÍNEA RELACIONADA CON LA BASE DE DATOS QUE NECESITAS IMPORTAR AQUÍ.
+import { sequelize } from './models/index.js'; 
 
-// 2. Importar nuestro modelo (aunque no lo usemos directamente aquí, es necesario para que se registre)
-import Cita from './models/Cita.js';
+// 4. Importar los módulos de rutas
+// ASEGÚRATE DE QUE EL NOMBRE DEL ARCHIVO SEA CORRECTO.
+// Asumiendo que se llama 'citasRoutes.js'
+import citasRoutes from './routes/citasRoutes.js';
+import authRoutes from './routes/auth.js';
 
-// 3. Importar las rutas de citas (aunque no las usemos directamente aquí, es necesario para que se registren)
-import citasRoutes from './routes/citasRoutes.js'; // Descomentar si se usan las rutas
-
+// --- Configuración de la Aplicación Express ---
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// --- Montaje de Rutas ---
+app.use('/api/auth', authRoutes);
 app.use('/api/citas', citasRoutes);
 
+// Ruta de prueba
 app.get('/', (req, res) => {
-    res.send('¡Hola desde el servidor backend de Citas! (API Lista)');
+    res.send('¡API del Gestor de Citas funcionando correctamente!');
 });
 
-const PORT = 4000;
+// --- Arranque del Servidor ---
+const PORT = process.env.PORT || 4000;
 
-// 3. Función principal para arrancar el servidor y la base de datos
 async function startServer() {
     try {
-        // Autenticar la conexión a la base de datos
-        await sequelize.authenticate();
-        console.log('Conexión a la base de datos establecida correctamente.');
+        // Usa force:true solo LA PRIMERA VEZ para arreglar las tablas.
+        // Luego cámbialo a force:false.
+        await sequelize.sync({ force: false }); 
+        
+        console.log('✅ Base de datos sincronizada exitosamente.');
 
-        // Sincronizar los modelos con la base de datos
-        // Esto creará la tabla 'Citas' si no existe
-        await sequelize.sync({ force: false }); // force: true borraría la tabla y la volvería a crear
-        console.log('Todos los modelos fueron sincronizados exitosamente.');
-
-        // Una vez sincronizado, ponemos el servidor a escuchar
         app.listen(PORT, () => {
-            console.log(`Servidor corriendo en el puerto ${PORT}`);
+            console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
         });
+
     } catch (error) {
-        console.error('No se pudo conectar a la base de datos:', error);
+        console.error('❌ Error al iniciar el servidor:', error);
     }
 }
 
-// Llamamos a la función para iniciar todo
 startServer();

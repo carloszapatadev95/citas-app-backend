@@ -1,17 +1,7 @@
-// backend/config/database.js (VERSIÓN DE DEPURACIÓN)
+// backend/config/database.js (VERSIÓN LIMPIA)
 import { Sequelize } from 'sequelize';
-import dotenv from 'dotenv';
 
-dotenv.config();
-
-// --- INICIO DE LA SECCIÓN DE DEPURACIÓN ---
-console.log("--- INICIANDO CONFIGURACIÓN DE BASE DE DATOS ---");
-console.log(`Valor de NODE_ENV: ${process.env.NODE_ENV}`);
-console.log(`Valor de DB_HOST: ${process.env.DB_HOST}`);
-console.log(`¿Estamos en producción? ${process.env.NODE_ENV === 'production'}`);
-console.log("----------------------------------------------");
-// --- FIN DE LA SECCIÓN DE DEPURACIÓN ---
-
+// Quitamos los logs de aquí para no repetir
 const options = {
     host: process.env.DB_HOST || 'localhost',
     dialect: 'mysql',
@@ -19,15 +9,12 @@ const options = {
 };
 
 if (process.env.NODE_ENV === 'production') {
-    console.log("-> Entrando en el bloque de configuración de PRODUCCIÓN.");
     options.dialectOptions = {
         ssl: {
             require: true,
             rejectUnauthorized: false
         }
     };
-} else {
-    console.log("-> Entrando en el bloque de configuración de DESARROLLO.");
 }
 
 const sequelize = new Sequelize(
