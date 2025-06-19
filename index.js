@@ -21,7 +21,28 @@ import authRoutes from './routes/auth.js';
 
 // --- Configuración de la Aplicación Express ---
 const app = express();
-app.use(cors());
+
+// Lista de orígenes permitidos
+const allowedOrigins = [
+    'https://citas-app-frontend-eight.vercel.app', // Tu frontend en producción
+    'http://localhost:3000'                      // Tu frontend en desarrollo (Vite)
+];
+
+// Configuración de CORS
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Permite peticiones sin origen (como las de Postman o apps móviles)
+        if (!origin) return callback(null, true);
+        // Si el origen está en nuestra lista blanca, permítelo
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'La política de CORS para este sitio no permite acceso desde el origen especificado.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    }
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // --- Montaje de Rutas ---
