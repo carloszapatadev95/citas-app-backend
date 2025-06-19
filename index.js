@@ -14,11 +14,24 @@ const allowedOrigins = [
 ];
 const corsOptions = {
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('CORS policy does not allow access from this origin.'));
+        // Permitimos peticiones sin origen (Postman, apps móviles, etc.)
+        if (!origin) return callback(null, true);
+
+        // Permitimos localhost:3000 para desarrollo
+        if (origin === 'http://localhost:3000') {
+            return callback(null, true);
         }
+
+        // Creamos una expresión regular para validar los dominios de Vercel
+        // Esto aceptará la URL de producción y cualquier URL de preview.
+        const vercelRegex = /^https:\/\/citas-app-frontend-.*\.vercel\.app$/;
+        if (vercelRegex.test(origin)) {
+            return callback(null, true);
+        }
+
+        // Si el origen no coincide con nada de lo anterior, lo rechazamos.
+        const msg = 'La política de CORS para este sitio no permite acceso desde el origen especificado.';
+        return callback(new Error(msg), false);
     }
 };
 app.use(cors(corsOptions));
