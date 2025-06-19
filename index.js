@@ -47,7 +47,7 @@ const PORT = process.env.PORT || 4000;
 async function startServer() {
     try {
         // Ejecuta esto UNA VEZ para re-crear las tablas correctamente.
-        await sequelize.sync({ force: true });
+        await sequelize.sync({ force: false });
         
         console.log('✅ Base de datos RE-CREADA y sincronizada.');
 
