@@ -1,60 +1,78 @@
-// backend/index.js (VERSIÓN FINAL)
+// Archivo: backend/index.js
+// Propósito: Archivo principal del servidor, configuración de Express y Socket.IO.
+
 import './config.js'; 
 import express from 'express';
 import cors from 'cors';
-import { sequelize } from './models/index.js'; // Importa desde el centralizador
-import citasRoutes from './routes/citasRoutes.js'; // Ahora el nombre del archivo es correcto
+import http from 'http';
+import { Server } from 'socket.io';
+import { sequelize } from './models/index.js';
+import citasRoutes from './routes/citasRoutes.js';
 import authRoutes from './routes/auth.js';
+import notificationsRoutes from './routes/notifications.js';
+import { revisarYEnviarRecordatorios } from './services/notificationService.js'; 
 
 const app = express();
+const server = http.createServer(app);
 
-const allowedOrigins = [
-    'https://citas-app-frontend-eight.vercel.app',
-    'http://localhost:3000'
-];
+// --- INICIO DE LA CORRECCIÓN ---
+// Configuración de Socket.IO
+const io = new Server(server, {
+    cors: {
+        // La configuración de CORS para Socket.IO también debe ser explícita
+        origin: [
+            "https://citas-app-frontend-eight.vercel.app", // Tu URL de Vercel principal
+            /^https:\/\/citas-app-frontend-.*\.vercel\.app$/, // Regex para previews
+            "http://localhost:3000"
+        ],
+        methods: ["GET", "POST"]
+    }
+});
+
+// Configuración de CORS para la API de Express
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permitimos peticiones sin origen (Postman, apps móviles, etc.)
-        if (!origin) return callback(null, true);
-
-        // Permitimos localhost:3000 para desarrollo
-        if (origin === 'http://localhost:3000') {
-            return callback(null, true);
-        }
-
-        // Creamos una expresión regular para validar los dominios de Vercel
-        // Esto aceptará la URL de producción y cualquier URL de preview.
         const vercelRegex = /^https:\/\/citas-app-frontend-.*\.vercel\.app$/;
-        if (vercelRegex.test(origin)) {
-            return callback(null, true);
+        // Permitimos localhost, todos los dominios de Vercel y peticiones sin origen (Postman)
+        if (!origin || vercelRegex.test(origin) || origin === 'http://localhost:3000') {
+            callback(null, true);
+        } else {
+            callback(new Error('La política de CORS no permite acceso desde este origen.'));
         }
-
-        // Si el origen no coincide con nada de lo anterior, lo rechazamos.
-        const msg = 'La política de CORS para este sitio no permite acceso desde el origen especificado.';
-        return callback(new Error(msg), false);
     }
 };
+
 app.use(cors(corsOptions));
+// --- FIN DE LA CORRECCIÓN ---
+
 app.use(express.json());
 
+// --- Montaje de Rutas ---
 app.use('/api/auth', authRoutes);
 app.use('/api/citas', citasRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
-app.get('/', (req, res) => res.send('API del Gestor de Citas funcionando'));
+// --- Lógica de Socket.IO ---
+io.on('connection', (socket) => {
+    console.log(`[Socket.IO] Un cliente se ha conectado: ${socket.id}`);
+    socket.on('disconnect', () => {
+        console.log(`[Socket.IO] Cliente desconectado: ${socket.id}`);
+    });
+});
+
+app.get('/', (req, res) => res.send('API del Gestor de Citas funcionando correctamente!'));
 
 const PORT = process.env.PORT || 4000;
 
 async function startServer() {
     try {
-        // Ejecuta esto UNA VEZ para re-crear las tablas correctamente.
         await sequelize.sync({ force: false });
-        
-        console.log('✅ Base de datos RE-CREADA y sincronizada.');
+        console.log('✅ Base de datos sincronizada exitosamente.');
 
-        app.listen(PORT, () => {
-            console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+        server.listen(PORT, () => {
+            console.log(`🚀 Servidor (HTTP y WebSocket) corriendo en http://localhost:${PORT}`);
+            setInterval(() => revisarYEnviarRecordatorios(io), 60000); 
         });
-
     } catch (error) {
         console.error('❌ Error al iniciar el servidor:', error);
     }

@@ -9,7 +9,15 @@ const Cita = sequelize.define('Cita', {
     usuarioId: { // Esta columna es crucial
         type: DataTypes.INTEGER,
         allowNull: false,
+    },
+    recordatorioEnviado: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false, 
+        allowNull: false,
     }
+    },
+    {
+      tableName: 'citas'
 });
 
 export default Cita;
