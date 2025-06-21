@@ -10,6 +10,7 @@ import { sequelize } from './models/index.js';
 import citasRoutes from './routes/citasRoutes.js';
 import authRoutes from './routes/auth.js';
 import notificationsRoutes from './routes/notifications.js';
+import contactRoutes from './routes/contact.js'; 
 import { revisarYEnviarRecordatorios } from './services/notificationService.js'; 
 
 const app = express();
@@ -51,6 +52,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/citas', citasRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/contact', contactRoutes);
 
 // --- Lógica de Socket.IO ---
 io.on('connection', (socket) => {
@@ -69,8 +71,8 @@ async function startServer() {
         await sequelize.sync({ force: false });
         console.log('✅ Base de datos sincronizada exitosamente.');
 
-        server.listen(PORT, () => {
-            console.log(`🚀 Servidor (HTTP y WebSocket) corriendo en http://localhost:${PORT}`);
+        server.listen(process.env.PORT || 4000, () => {
+            console.log(`🚀 Servidor (HTTP y WebSocket) corriendo.`);
             setInterval(() => revisarYEnviarRecordatorios(io), 60000); 
         });
     } catch (error) {
