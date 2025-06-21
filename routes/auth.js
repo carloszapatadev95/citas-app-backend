@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
         console.log(`[LOGIN] Usando JWT_SECRET: ${process.env.JWT_SECRET}`); 
         // Firmar el token
         const token = jwt.sign(payload, process.env.JWT_SECRET || 'SECRETO_POR_DEFECTO_PARA_DESARROLLO', {
-            expiresIn: '1h',
+            expiresIn: '180d', // 180 días
         });
 
         res.json({ token });
