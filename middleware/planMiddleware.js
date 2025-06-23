@@ -42,6 +42,7 @@ export const verificarPlanActivo = async (req, res, next) => {
  * Middleware para limitar el número de citas que puede crear un usuario 'free'.
  * Este es un ejemplo de una regla de negocio más compleja.
  */
+
 export const limitarCitasParaPlanFree = async (req, res, next) => {
     try {
         if (!req.usuarioId) {
@@ -50,27 +51,28 @@ export const limitarCitasParaPlanFree = async (req, res, next) => {
 
         const usuario = await Usuario.findByPk(req.usuarioId, { attributes: ['plan'] });
 
-        // Si el usuario es 'pro' o 'trial', no le aplicamos ningún límite.
-        if (usuario.plan === 'pro' || usuario.plan === 'trial') {
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Si el usuario es 'pro', tiene acceso ilimitado y puede continuar.
+        if (usuario && usuario.plan === 'pro') {
             return next();
         }
+        // --- FIN DE LA CORRECCIÓN ---
 
-        // Si el usuario es 'free', contamos sus citas activas.
-        if (usuario.plan === 'free') {
-            const totalCitas = await Cita.count({ where: { usuarioId: req.usuarioId } });
-            
-            // Límite de ejemplo: 5 citas para usuarios gratuitos.
-            const LIMITE_CITAS_FREE = 5; 
+        // Para cualquier otro plan ('free' o 'trial'), aplicamos el límite.
+        const totalCitas = await Cita.count({ where: { usuarioId: req.usuarioId } });
+        
+        const LIMITE_CITAS = 5; // Límite para planes no-pro
 
-            if (totalCitas >= LIMITE_CITAS_FREE) {
-                return res.status(403).json({ 
-                    message: `Has alcanzado el límite de ${LIMITE_CITAS_FREE} citas para el plan gratuito.`,
-                    reason: 'limit_reached' 
-                });
-            }
+        if (totalCitas >= LIMITE_CITAS) {
+            // Si se alcanza el límite, se devuelve un error 403.
+            return res.status(403).json({ 
+                message: `Has alcanzado el límite de ${LIMITE_CITAS} citas para tu plan actual.`,
+                reason: 'limit_reached' 
+            });
         }
         
-        next(); // El usuario 'free' no ha alcanzado el límite, puede crear la cita.
+        // Si no es 'pro' pero no ha alcanzado el límite, puede continuar.
+        next(); 
 
     } catch (error) {
         console.error("Error en el middleware de límite de citas:", error);

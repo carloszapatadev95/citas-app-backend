@@ -16,10 +16,12 @@ import citasRoutes from './routes/citasRoutes.js';
 import authRoutes from './routes/auth.js';
 import notificationsRoutes from './routes/notifications.js';
 import contactRoutes from './routes/contact.js'; 
+import billingRoutes from './routes/billing.js';
 
 // Importación de nuestros servicios de tareas programadas (schedulers)
 import { revisarYEnviarRecordatorios } from './services/notificationService.js'; 
 import { verificarYActualizarPruebas } from './services/accountService.js'; 
+
 
 // --- Configuración Inicial de Express y Socket.IO ---
 const app = express();
@@ -54,6 +56,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/citas', citasRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/billing', billingRoutes);
 
 // --- Lógica de Conexión de Socket.IO ---
 io.on('connection', (socket) => {
@@ -71,7 +74,7 @@ const PORT = process.env.PORT || 4000;
 
 async function startServer() {
     try {
-        await sequelize.sync({ force: false }); // Mantenemos en 'false' para no borrar datos
+        await sequelize.sync({ force: true }); // Mantenemos en 'false' para no borrar datos
         console.log('✅ Base de datos sincronizada exitosamente.');
 
         server.listen(PORT, () => {

@@ -52,6 +52,7 @@ router.post('/login', async (req, res) => {
         const payload = {
             id: usuario.id,
             nombre: usuario.nombre,
+              plan: usuario.plan 
         };
         console.log(`[LOGIN] Usando JWT_SECRET: ${process.env.JWT_SECRET}`);
         // Firmar el token
