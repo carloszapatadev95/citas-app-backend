@@ -20,13 +20,27 @@ const Usuario = sequelize.define('Usuario', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    // --- CORRECCIÓN: Simplificamos la columna pushSubscription ---
-    // Dejamos que el driver de la base de datos maneje la conversión a JSON.
-    // Ya no necesitamos getters y setters manuales aquí.
+   
     pushSubscription: {
         type: DataTypes.JSON,
         allowNull: true,
     },
+
+      plan: {
+        type: DataTypes.ENUM('free', 'pro', 'trial'),
+        defaultValue: 'trial', // Todo nuevo usuario empieza en un período de prueba
+        allowNull: false,
+    },
+    fechaFinPrueba: {
+        type: DataTypes.DATE,
+        allowNull: true, // Es nulo si el usuario es 'free' o 'pro'
+    },
+    // Guardaremos el ID de la suscripción de la tienda para futuras verificaciones
+    // Podemos usar un campo JSON para guardar el de Google y Apple.
+    idSuscripcionTienda: {
+        type: DataTypes.JSON,
+        allowNull: true,
+    }
 }, {
     tableName: 'usuarios',
     hooks: {

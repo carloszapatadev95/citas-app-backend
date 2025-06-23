@@ -5,6 +5,8 @@ import express from 'express';
 // Importamos los modelos que necesitamos desde el centralizador
 import { Cita, Usuario } from '../models/index.js'; 
 import { protegerRuta } from '../middleware/authMiddleware.js';
+// 1. Importar el nuevo middleware
+import { limitarCitasParaPlanFree } from '../middleware/planMiddleware.js'; 
 // Importamos la función específica para enviar el correo de confirmación
 import { enviarCorreoConfirmacion } from '../services/emailService.js';
 
@@ -29,7 +31,7 @@ router.get('/', async (req, res) => {
 });
 
 // === POST /api/citas -> Crear una nueva cita y enviar correo de confirmación ===
-router.post('/', async (req, res) => {
+router.post('/', limitarCitasParaPlanFree, async (req, res) => {
     try {
         const { titulo, fecha, descripcion } = req.body;
         

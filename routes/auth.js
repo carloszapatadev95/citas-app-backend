@@ -1,7 +1,7 @@
 // backend/routes/auth.js
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import Usuario from '../models/Usuario.js';
+import { Usuario } from '../models/index.js';
 
 const router = express.Router();
 
@@ -14,11 +14,26 @@ router.post('/register', async (req, res) => {
         if (existeUsuario) {
             return res.status(400).json({ message: 'El correo electrónico ya está en uso.' });
         }
+
+        // --- INICIO DE LÓGICA DE PRUEBA ---
+        // Calcular la fecha de fin de la prueba (15 días desde ahora)
+        const fechaActual = new Date();
+        const fechaFinPrueba = new Date(fechaActual.setDate(fechaActual.getDate() + 15));
+        // --- FIN DE LÓGICA DE PRUEBA ---
         // Crear el nuevo usuario (la contraseña se hashea automáticamente por el hook)
-        const nuevoUsuario = await Usuario.create({ nombre, email, password });
-        res.status(201).json({ message: 'Usuario registrado exitosamente.' });
+
+          // Crear el nuevo usuario, incluyendo la fecha de fin de prueba
+        // El campo 'plan' se establece en 'trial' por defecto.
+        const nuevoUsuario = await Usuario.create({ 
+            nombre, 
+            email, 
+            password,
+            fechaFinPrueba // Guardamos la fecha calculada
+        });
+      res.status(201).json({ message: 'Usuario registrado exitosamente. Período de prueba de 15 días iniciado.' });
     } catch (error) {
-        res.status(500).json({ message: 'Error en el servidor', error: error.message });
+        console.error("ERROR AL REGISTRAR USUARIO:", error);
+        res.status(500).json({ message: 'Error en el servidor al registrar el usuario.', error: error.message });
     }
 });
 
@@ -38,7 +53,7 @@ router.post('/login', async (req, res) => {
             id: usuario.id,
             nombre: usuario.nombre,
         };
-        console.log(`[LOGIN] Usando JWT_SECRET: ${process.env.JWT_SECRET}`); 
+        console.log(`[LOGIN] Usando JWT_SECRET: ${process.env.JWT_SECRET}`);
         // Firmar el token
         const token = jwt.sign(payload, process.env.JWT_SECRET || 'SECRETO_POR_DEFECTO_PARA_DESARROLLO', {
             expiresIn: '180d', // 180 días
