@@ -1,37 +1,46 @@
+// Archivo: backend/routes/notifications.js
+
 import express from 'express';
 import { protegerRuta } from '../middleware/authMiddleware.js';
 import { Usuario } from '../models/index.js';
-import axios from 'axios'; // Usamos axios
+import webpush from '../config/webpush.js';
 
 const router = express.Router();
 
 router.post('/subscribe', protegerRuta, async (req, res) => {
-    // Ahora esperamos un string directamente: el Expo Push Token
-    const pushToken = req.body.token; 
+    const subscription = req.body;
     const usuarioId = req.usuarioId;
 
     try {
-        if (typeof pushToken !== 'string' || !pushToken.startsWith('ExponentPushToken[')) {
-            return res.status(400).json({ message: 'Token de push inválido.' });
-        }
-        
-        await Usuario.update({ pushSubscription: pushToken }, { where: { id: usuarioId } });
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Convertimos el objeto de suscripción a un string JSON antes de guardarlo.
+        // Esto es más compatible con la forma en que Sequelize y MySQL manejan el tipo de dato JSON.
+        const subscriptionAsString = JSON.stringify(subscription);
+        // --- FIN DE LA CORRECCIÓN ---
 
-        // Enviar notificación de bienvenida usando la API de Expo
-        await axios.post('https://exp.host/--/api/v2/push/send', {
-            to: pushToken,
-            sound: 'default',
+        await Usuario.update(
+            { pushSubscription: subscriptionAsString }, // Guardamos el string
+            { where: { id: usuarioId } }
+        );
+
+        // Enviamos la notificación de bienvenida
+        const payload = JSON.stringify({
             title: '¡Suscripción Exitosa!',
-            body: 'Ahora recibirás recordatorios de tus citas.'
+            message: 'Ahora recibirás notificaciones push nativas.'
         });
 
-        res.status(201).json({ message: 'Suscripción guardada y notificada con éxito.' });
+        // web-push puede manejar tanto el objeto como el string parseado
+        await webpush.sendNotification(subscription, payload);
+
+        res.status(201).json({ message: 'Suscripción guardada con éxito.' });
     } catch (error) {
-        console.error('Error al guardar la suscripción:', error.response?.data || error);
+        console.error('Error al guardar la suscripción:', error);
         res.status(500).json({ message: 'Error en el servidor.' });
     }
 });
 
-// router.get('/vapid-public-key', ...);
+router.get('/vapid-public-key', (req, res) => {
+    res.send(process.env.VAPID_PUBLIC_KEY);
+});
 
 export default router;
