@@ -1,5 +1,4 @@
 // Archivo: backend/routes/notifications.js
-// Propósito: Manejar las rutas relacionadas con las notificaciones push.
 
 import express from 'express';
 import { protegerRuta } from '../middleware/authMiddleware.js';
@@ -8,37 +7,40 @@ import webpush from '../config/webpush.js';
 
 const router = express.Router();
 
-// Endpoint para enviar la clave pública VAPID al frontend.
-// Esta ruta es pública y no necesita protección.
-router.get('/vapid-public-key', (req, res) => {
-    res.send(process.env.VAPID_PUBLIC_KEY);
-});
-
-// Endpoint para que el cliente guarde su suscripción.
-// Esta ruta SÍ está protegida, porque necesitamos saber qué usuario se está suscribiendo.
 router.post('/subscribe', protegerRuta, async (req, res) => {
     const subscription = req.body;
     const usuarioId = req.usuarioId;
 
     try {
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Convertimos el objeto de suscripción a un string JSON antes de guardarlo.
+        // Esto es más compatible con la forma en que Sequelize y MySQL manejan el tipo de dato JSON.
+        const subscriptionAsString = JSON.stringify(subscription);
+        // --- FIN DE LA CORRECCIÓN ---
+
         await Usuario.update(
-            { pushSubscription: subscription },
+            { pushSubscription: subscriptionAsString }, // Guardamos el string
             { where: { id: usuarioId } }
         );
 
-        // Preparamos y enviamos una notificación de bienvenida para confirmar.
+        // Enviamos la notificación de bienvenida
         const payload = JSON.stringify({
             title: '¡Suscripción Exitosa!',
-            message: 'Ahora recibirás recordatorios de tus citas.'
+            message: 'Ahora recibirás notificaciones push nativas.'
         });
 
+        // web-push puede manejar tanto el objeto como el string parseado
         await webpush.sendNotification(subscription, payload);
 
         res.status(201).json({ message: 'Suscripción guardada con éxito.' });
     } catch (error) {
-        console.error('Error al guardar la suscripción o enviar notificación:', error);
+        console.error('Error al guardar la suscripción:', error);
         res.status(500).json({ message: 'Error en el servidor.' });
     }
+});
+
+router.get('/vapid-public-key', (req, res) => {
+    res.send(process.env.VAPID_PUBLIC_KEY);
 });
 
 export default router;
