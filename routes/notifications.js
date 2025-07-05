@@ -1,44 +1,50 @@
 // Archivo: backend/routes/notifications.js
-
 import express from 'express';
 import { protegerRuta } from '../middleware/authMiddleware.js';
 import { Usuario } from '../models/index.js';
-import webpush from '../config/webpush.js';
+import axios from 'axios';
 
 const router = express.Router();
 
+// Ruta para que la app móvil guarde su token de push
 router.post('/subscribe', protegerRuta, async (req, res) => {
-    const subscription = req.body;
-    const usuarioId = req.usuarioId;
+    const { token: expoPushToken } = req.body;
+    const { usuarioId } = req;
+
+    console.log(`[Subscribe] Recibida petición para usuario ${usuarioId} con token.`);
+
+    if (!expoPushToken || typeof expoPushToken !== 'string' || !expoPushToken.startsWith('ExponentPushToken[')) {
+        console.error(`[Subscribe] Token de push inválido para usuario ${usuarioId}:`, expoPushToken);
+        return res.status(400).json({ message: 'Token de push inválido o ausente.' });
+    }
 
     try {
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Convertimos el objeto de suscripción a un string JSON antes de guardarlo.
-        // Esto es más compatible con la forma en que Sequelize y MySQL manejan el tipo de dato JSON.
-        const subscriptionAsString = JSON.stringify(subscription);
-        // --- FIN DE LA CORRECCIÓN ---
-
+        // Guardamos el token de Expo directamente como string.
+        // La columna en el modelo Usuario debe ser de tipo STRING o TEXT.
         await Usuario.update(
-            { pushSubscription: subscriptionAsString }, // Guardamos el string
+            { pushSubscription: expoPushToken },
             { where: { id: usuarioId } }
         );
+        console.log(`[Subscribe] Suscripción guardada para usuario ${usuarioId}.`);
 
-        // Enviamos la notificación de bienvenida
-        const payload = JSON.stringify({
-            title: '¡Suscripción Exitosa!',
-            message: 'Ahora recibirás notificaciones push nativas.'
+        // Enviamos una notificación de bienvenida para confirmar.
+        await axios.post('https://exp.host/--/api/v2/push/send', {
+            to: expoPushToken,
+            sound: 'default',
+            title: '¡Suscripción Confirmada!',
+            body: 'Recibirás recordatorios de tus citas aquí.'
         });
+        
+        console.log(`[Push Expo] Notificación de bienvenida enviada a usuario ${usuarioId}`);
+        res.status(201).json({ message: 'Suscripción exitosa.' });
 
-        // web-push puede manejar tanto el objeto como el string parseado
-        await webpush.sendNotification(subscription, payload);
-
-        res.status(201).json({ message: 'Suscripción guardada con éxito.' });
     } catch (error) {
-        console.error('Error al guardar la suscripción:', error);
-        res.status(500).json({ message: 'Error en el servidor.' });
+        console.error(`[Subscribe Error] Usuario ${usuarioId}:`, error.response?.data || error);
+        res.status(500).json({ message: 'Error en el servidor al guardar la suscripción.' });
     }
 });
 
+// Esta ruta es para la versión web y usa las claves VAPID.
 router.get('/vapid-public-key', (req, res) => {
     res.send(process.env.VAPID_PUBLIC_KEY);
 });
