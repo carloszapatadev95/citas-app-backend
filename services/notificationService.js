@@ -5,7 +5,6 @@ import { Op } from 'sequelize';
 import { Cita, Usuario } from '../models/index.js';
 import webpush from '../config/webpush.js';
 import { enviarCorreoRecordatorio } from './emailService.js';
-import axios from 'axios';
 
 // --- INICIO DE LA CORRECCIÓN ---
 // La función ahora acepta 'io' como un argumento, que será pasado desde index.js
