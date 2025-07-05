@@ -1,50 +1,44 @@
-// Archivo: backend/routes/notifications.js
 import express from 'express';
 import { protegerRuta } from '../middleware/authMiddleware.js';
 import { Usuario } from '../models/index.js';
 import axios from 'axios';
+import webpush from '../config/webpush.js';
 
 const router = express.Router();
 
-// Ruta para que la app móvil guarde su token de push
 router.post('/subscribe', protegerRuta, async (req, res) => {
-    const { token: expoPushToken } = req.body;
+    // --- LOGS DE DEPURACIÓN ---
+    console.log("--- Recibida petición en /subscribe ---");
+    console.log("Cuerpo de la petición (req.body):", req.body);
+    // ----------------------------
+
+    const { token } = req.body;
     const { usuarioId } = req;
 
-    console.log(`[Subscribe] Recibida petición para usuario ${usuarioId} con token.`);
-
-    if (!expoPushToken || typeof expoPushToken !== 'string' || !expoPushToken.startsWith('ExponentPushToken[')) {
-        console.error(`[Subscribe] Token de push inválido para usuario ${usuarioId}:`, expoPushToken);
+    if (typeof token !== 'string' || !token.startsWith('ExponentPushToken[')) {
+        console.error("Token de push inválido recibido:", token);
         return res.status(400).json({ message: 'Token de push inválido o ausente.' });
     }
 
     try {
-        // Guardamos el token de Expo directamente como string.
-        // La columna en el modelo Usuario debe ser de tipo STRING o TEXT.
-        await Usuario.update(
-            { pushSubscription: expoPushToken },
-            { where: { id: usuarioId } }
-        );
-        console.log(`[Subscribe] Suscripción guardada para usuario ${usuarioId}.`);
+        await Usuario.update({ pushSubscription: token }, { where: { id: usuarioId } });
 
-        // Enviamos una notificación de bienvenida para confirmar.
         await axios.post('https://exp.host/--/api/v2/push/send', {
-            to: expoPushToken,
+            to: token,
             sound: 'default',
-            title: '¡Suscripción Confirmada!',
-            body: 'Recibirás recordatorios de tus citas aquí.'
+            title: '¡Suscripción Exitosa!',
+            body: 'Ahora recibirás recordatorios desde la app.'
         });
         
-        console.log(`[Push Expo] Notificación de bienvenida enviada a usuario ${usuarioId}`);
+        console.log(`[Push Expo] Suscripción guardada y notificada para el usuario ${usuarioId}`);
         res.status(201).json({ message: 'Suscripción exitosa.' });
-
     } catch (error) {
-        console.error(`[Subscribe Error] Usuario ${usuarioId}:`, error.response?.data || error);
-        res.status(500).json({ message: 'Error en el servidor al guardar la suscripción.' });
+        console.error('Error al guardar suscripción:', error.response?.data || error);
+        res.status(500).json({ message: 'Error en el servidor.' });
     }
 });
 
-// Esta ruta es para la versión web y usa las claves VAPID.
+// Esta ruta ya no es necesaria para Expo, pero no hace daño dejarla.
 router.get('/vapid-public-key', (req, res) => {
     res.send(process.env.VAPID_PUBLIC_KEY);
 });
