@@ -51,12 +51,12 @@ export const limitarCitasParaPlanFree = async (req, res, next) => {
 
         const usuario = await Usuario.findByPk(req.usuarioId, { attributes: ['plan'] });
 
-        // --- INICIO DE LA CORRECCIÓN ---
+        
         // Si el usuario es 'pro', tiene acceso ilimitado y puede continuar.
         if (usuario && usuario.plan === 'pro') {
             return next();
         }
-        // --- FIN DE LA CORRECCIÓN ---
+
 
         // Para cualquier otro plan ('free' o 'trial'), aplicamos el límite.
         const totalCitas = await Cita.count({ where: { usuarioId: req.usuarioId } });
