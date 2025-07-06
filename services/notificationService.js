@@ -5,11 +5,38 @@ import { Op } from 'sequelize';
 import { Cita, Usuario } from '../models/index.js';
 import webpush from '../config/webpush.js';
 import { enviarCorreoRecordatorio } from './emailService.js';
+import axios from 'axios';
 
-// --- INICIO DE LA CORRECCIÓN ---
+
+// --- NUEVA FUNCIÓN AUXILIAR PARA ENVIAR NOTIFICACIONES EXPO ---
+const enviarNotificacionExpo = async (expoPushToken, cita) => {
+    const message = {
+        to: expoPushToken,
+        sound: 'default', // Esto hace que el dispositivo vibre y suene
+        title: `🔔 Recordatorio: ${cita.titulo}`,
+        body: `Tu cita es a las ${new Date(cita.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.`,
+        data: { citaId: cita.id }, // Puedes enviar datos adicionales
+    };
+
+    try {
+        await axios.post('https://exp.host/--/api/v2/push/send', message, {
+            headers: {
+                'Accept': 'application/json',
+                'Accept-encoding': 'gzip, deflate',
+                'Content-Type': 'application/json',
+            },
+        });
+        console.log(`[Expo Push] Notificación enviada para el token ${expoPushToken.substring(0, 20)}...`);
+        return true;
+    } catch (error) {
+        console.error(`[Expo Push Error] No se pudo enviar la notificación:`, error.response?.data || error.message);
+        return false;
+    }
+};
+
+
 // La función ahora acepta 'io' como un argumento, que será pasado desde index.js
 export const revisarYEnviarRecordatorios = async (io) => {
-// --- FIN DE LA CORRECCIÓN ---
 
     console.log(`[Scheduler] Ejecutando tarea de revisión de citas... ${new Date().toLocaleTimeString()}`);
     
@@ -44,26 +71,30 @@ export const revisarYEnviarRecordatorios = async (io) => {
             let correoEnviado = false;
             let eventoSocketEnviado = false;
 
-            // --- Lógica para Notificaciones Push ---
-            if (usuario.pushSubscription) {
+             // --- LÓGICA DE NOTIFICACIÓN MULTICANAL MEJORADA ---
+
+            // 1. Notificación Push Web (si existe suscripción web)
+            if (usuario.pushSubscription.web?.endpoint) {
                 try {
-                    const subscription = typeof usuario.pushSubscription === 'string'
-                        ? JSON.parse(usuario.pushSubscription) : usuario.pushSubscription;
-                    
-                    if (subscription?.endpoint) {
-                        const payload = JSON.stringify({
-                            title: `🔔 Recordatorio: ${cita.titulo}`,
-                            message: `Tu cita es a las ${new Date(cita.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.`
-                        });
-                        await webpush.sendNotification(subscription, payload);
-                        notificacionPushEnviada = true;
-                        console.log(`[Push] Notificación enviada al usuario ${usuario.id}`);
-                    }
+                    const payload = JSON.stringify({
+                        title: `🔔 Recordatorio: ${cita.titulo}`,
+                        message: `Tu cita es a las ${new Date(cita.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.`
+                    });
+                    await webpush.sendNotification(usuario.pushSubscription.web, payload);
+                    notificacionPushEnviada = true;
+                    console.log(`[Web Push] Notificación enviada al usuario ${usuario.id}`);
                 } catch (pushError) {
-                    console.error(`[Push Error] Usuario ${usuario.id}:`, pushError.body || pushError.message);
+                    console.error(`[Web Push Error] Usuario ${usuario.id}:`, pushError.body || pushError.message);
                 }
             }
 
+            // 2. Notificación Push Nativa (si existe token de expo)
+            if (usuario.pushSubscription.expo) {
+                const enviadaConExito = await enviarNotificacionExpo(usuario.pushSubscription.expo, cita);
+                if (enviadaConExito) {
+                    notificacionPushEnviada = true;
+                }
+            }
             // --- Lógica para Notificaciones por Correo ---
             try {
                 await enviarCorreoRecordatorio(usuario, cita);

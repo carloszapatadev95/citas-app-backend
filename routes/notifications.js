@@ -1,5 +1,4 @@
-// Archivo: backend/routes/notifications.js
-// Propósito: Manejar las rutas relacionadas con las notificaciones push.
+// Archivo: backend/routes/notifications.js (MODIFICADO)
 
 import express from 'express';
 import { protegerRuta } from '../middleware/authMiddleware.js';
@@ -8,36 +7,60 @@ import webpush from '../config/webpush.js';
 
 const router = express.Router();
 
-// Endpoint para enviar la clave pública VAPID al frontend.
-// Esta ruta es pública y no necesita protección.
+// Ruta para obtener la clave pública VAPID
 router.get('/vapid-public-key', (req, res) => {
     res.send(process.env.VAPID_PUBLIC_KEY);
 });
 
-// Endpoint para que el cliente guarde su suscripción.
-// Esta ruta SÍ está protegida, porque necesitamos saber qué usuario se está suscribiendo.
 router.post('/subscribe', protegerRuta, async (req, res) => {
-    const subscription = req.body;
+    // El frontend nos dirá qué tipo de suscripción es
+    const { type, subscription, token } = req.body;
     const usuarioId = req.usuarioId;
 
     try {
-        const subscriptionAsString = JSON.stringify(subscription);
-        await Usuario.update(
-            { pushSubscription: subscription },
-            { where: { id: usuarioId } }
-        );
+        const usuario = await Usuario.findByPk(usuarioId);
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
 
-        // Preparamos y enviamos una notificación de bienvenida para confirmar.
-        const payload = JSON.stringify({
-            title: '¡Suscripción Exitosa!',
-            message: 'Ahora recibirás recordatorios de tus citas.'
-        });
+        // Obtenemos las suscripciones actuales o un objeto vacío
+        const currentSubscriptions = usuario.pushSubscription || {};
+        let updatedSubscriptions;
 
-        await webpush.sendNotification(subscription, payload);
+        if (type === 'web' && subscription) {
+            // Lógica para Web Push (la que ya tenías)
+            updatedSubscriptions = { ...currentSubscriptions, web: subscription };
+            await Usuario.update(
+                { pushSubscription: updatedSubscriptions },
+                { where: { id: usuarioId } }
+            );
+            
+            // Enviamos notificación de bienvenida para la web
+            const payload = JSON.stringify({
+                title: '¡Suscripción Web Exitosa!',
+                message: 'Ahora recibirás recordatorios de tus citas.'
+            });
+            await webpush.sendNotification(subscription, payload);
+            
+            res.status(201).json({ message: 'Suscripción web guardada con éxito.' });
 
-        res.status(201).json({ message: 'Suscripción guardada con éxito.' });
+        } else if (type === 'expo' && token) {
+            // Lógica para Expo Push (la nueva)
+            updatedSubscriptions = { ...currentSubscriptions, expo: token };
+            await Usuario.update(
+                { pushSubscription: updatedSubscriptions },
+                { where: { id: usuarioId } }
+            );
+            // NOTA: No enviamos notificación de bienvenida aquí para simplificar.
+            // Se podría hacer, pero requeriría llamar a la API de Expo.
+            res.status(201).json({ message: 'Suscripción móvil guardada con éxito.' });
+
+        } else {
+            res.status(400).json({ message: 'Tipo de suscripción no válido o datos faltantes.' });
+        }
+
     } catch (error) {
-        console.error('Error al guardar la suscripción o enviar notificación:', error);
+        console.error('Error al guardar la suscripción:', error);
         res.status(500).json({ message: 'Error en el servidor.' });
     }
 });

@@ -20,13 +20,14 @@ const Usuario = sequelize.define('Usuario', {
         type: DataTypes.STRING,
         allowNull: false
     },
-   
+
     pushSubscription: {
-        type: DataTypes.TEXT, // Usamos TEXT para almacenar el JSON de la suscripción
+        type: DataTypes.JSON, // Usamos JSON para almacenar múltiples tipos de suscripciones
         allowNull: true,
+        defaultValue: {} // Un objeto vacío por defecto
     },
 
-      plan: {
+    plan: {
         type: DataTypes.ENUM('free', 'pro', 'trial'),
         defaultValue: 'trial', // Todo nuevo usuario empieza en un período de prueba
         allowNull: false,
