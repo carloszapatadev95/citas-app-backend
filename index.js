@@ -74,7 +74,7 @@ const PORT = process.env.PORT || 4000;
 
 async function startServer() {
     try {
-        await sequelize.sync({ force: true }); // Mantenemos en 'false' para no borrar datos
+        await sequelize.sync({ force: false }); // Mantenemos en 'false' para no borrar datos
         console.log('✅ Base de datos sincronizada exitosamente.');
 
         server.listen(PORT, () => {
