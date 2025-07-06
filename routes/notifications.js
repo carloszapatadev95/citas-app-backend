@@ -1,34 +1,37 @@
+// Archivo: backend/routes/notifications.js
+
 import express from 'express';
 import { protegerRuta } from '../middleware/authMiddleware.js';
 import { Usuario } from '../models/index.js';
-import axios from 'axios';
+import webpush from '../config/webpush.js';
 
 const router = express.Router();
 
 router.post('/subscribe', protegerRuta, async (req, res) => {
-    // 1. Extraemos directamente el string del token del body.
-    const { token: expoPushToken } = req.body;
-    const { usuarioId } = req;
+    const subscriptionData = req.body;
+    const usuarioId = req.usuarioId;
 
-    if (!expoPushToken || typeof expoPushToken !== 'string') {
-        return res.status(400).json({ message: 'Token de push inválido o ausente.' });
+      if (!subscriptionData || (typeof subscriptionData !== 'object')) {
+        return res.status(400).json({ message: 'No se proporcionó información de suscripción válida.' });
     }
 
     try {
-        // 2. Guardamos el string del token directamente en la columna.
-        await Usuario.update(
-            { pushSubscription: expoPushToken }, // Sin JSON.stringify
+  
+         await Usuario.update(
+            { pushSubscription: JSON.stringify(subscriptionData) },
             { where: { id: usuarioId } }
-        );
-        
-        // La notificación de bienvenida sigue funcionando igual.
-        await axios.post('https://exp.host/--/api/v2/push/send', {
-            to: expoPushToken,
-            sound: 'default',
+        )
+
+        // Enviamos la notificación de bienvenida
+        const payload = JSON.stringify({
             title: '¡Suscripción Exitosa!',
-            body: 'Ahora recibirás recordatorios.'
+            message: 'Ahora recibirás notificaciones push nativas.'
         });
-        
+
+        // web-push puede manejar tanto el objeto como el string parseado
+        await webpush.sendNotification(subscriptionData, payload);
+
+                // La confirmación es la respuesta 201.
         res.status(201).json({ message: 'Suscripción guardada con éxito.' });
     } catch (error) {
         console.error('Error al guardar la suscripción:', error);
@@ -36,7 +39,6 @@ router.post('/subscribe', protegerRuta, async (req, res) => {
     }
 });
 
-// La ruta VAPID ya no se usa, pero la dejamos por si se reutiliza para la web.
 router.get('/vapid-public-key', (req, res) => {
     res.send(process.env.VAPID_PUBLIC_KEY);
 });

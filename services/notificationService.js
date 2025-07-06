@@ -1,22 +1,25 @@
 // Archivo: backend/services/notificationService.js
-// Propósito: Lógica para buscar citas y enviar recordatorios multi-canal (Push, Email, Socket.IO).
+// Propósito: Lógica para enviar recordatorios, ahora optimizada solo para Expo Push Tokens.
 
 import { Op } from 'sequelize';
 import { Cita, Usuario } from '../models/index.js';
-import webpush from '../config/webpush.js';
 import { enviarCorreoRecordatorio } from './emailService.js';
+import axios from 'axios';
+// Ya no se necesita la librería 'web-push'.
 
-// --- INICIO DE LA CORRECCIÓN ---
-// La función ahora acepta 'io' como un argumento, que será pasado desde index.js
+/**
+ * Función principal que se ejecuta periódicamente para revisar y enviar recordatorios.
+ * @param {object} io - La instancia del servidor de Socket.IO.
+ */
 export const revisarYEnviarRecordatorios = async (io) => {
-// --- FIN DE LA CORRECCIÓN ---
-
     console.log(`[Scheduler] Ejecutando tarea de revisión de citas... ${new Date().toLocaleTimeString()}`);
     
     try {
+        // 1. Definir el rango de tiempo.
         const ahora = new Date();
         const limiteSuperior = new Date(ahora.getTime() + 15 * 60 * 1000);
 
+        // 2. Buscar las citas próximas de usuarios que tengan una suscripción guardada.
         const citasProximas = await Cita.findAll({
             where: {
                 fecha: { [Op.between]: [ahora, limiteSuperior] },
@@ -24,11 +27,13 @@ export const revisarYEnviarRecordatorios = async (io) => {
             },
             include: [{
                 model: Usuario,
+                where: { pushSubscription: { [Op.ne]: null } },
                 attributes: ['id', 'nombre', 'email', 'pushSubscription'],
                 required: true
             }]
         });
 
+        // 3. Si no hay citas, terminar la ejecución de forma eficiente.
         if (citasProximas.length === 0) {
             console.log('[Scheduler] No hay citas próximas para notificar.');
             return;
@@ -36,60 +41,60 @@ export const revisarYEnviarRecordatorios = async (io) => {
 
         console.log(`[Scheduler] Se encontraron ${citasProximas.length} citas para notificar.`);
 
+        // 4. Procesar cada cita encontrada.
         for (const cita of citasProximas) {
             const usuario = cita.Usuario;
-            if (!usuario) continue;
+            // Doble verificación por seguridad.
+            if (!usuario || !usuario.pushSubscription) continue;
 
-            let notificacionPushEnviada = false;
-            let correoEnviado = false;
-            let eventoSocketEnviado = false;
+            let notificacionEnviada = false;
+            try {
+                // El dato de la BD es el string del token de Expo.
+                const expoPushToken = usuario.pushSubscription;
+                
+                const payload = {
+                    title: `🔔 Recordatorio: ${cita.titulo}`,
+                    body: `Tu cita es a las ${new Date(cita.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.`
+                };
 
-            // --- Lógica para Notificaciones Push ---
-            if (usuario.pushSubscription) {
-                try {
-                    const subscription = typeof usuario.pushSubscription === 'string'
-                        ? JSON.parse(usuario.pushSubscription) : usuario.pushSubscription;
+                // Verificamos que sea un token de Expo válido antes de enviarlo.
+                if (typeof expoPushToken === 'string' && expoPushToken.startsWith('ExponentPushToken')) {
+                    // Usamos axios para enviar la notificación a la API de Expo.
+                    await axios.post('https://exp.host/--/api/v2/push/send', {
+                        to: expoPushToken,
+                        sound: 'default',
+                        title: payload.title,
+                        body: payload.body,
+                        data: { citaId: cita.id } // Datos extra por si la app necesita saber a qué cita se refiere
+                    });
                     
-                    if (subscription?.endpoint) {
-                        const payload = JSON.stringify({
-                            title: `🔔 Recordatorio: ${cita.titulo}`,
-                            message: `Tu cita es a las ${new Date(cita.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.`
-                        });
-                        await webpush.sendNotification(subscription, payload);
-                        notificacionPushEnviada = true;
-                        console.log(`[Push] Notificación enviada al usuario ${usuario.id}`);
-                    }
-                } catch (pushError) {
-                    console.error(`[Push Error] Usuario ${usuario.id}:`, pushError.body || pushError.message);
+                    console.log(`[Push Expo] Recordatorio enviado al usuario ${usuario.id} para la cita ${cita.id}`);
+                    notificacionEnviada = true;
                 }
-            }
 
-            // --- Lógica para Notificaciones por Correo ---
-            try {
-                await enviarCorreoRecordatorio(usuario, cita);
-                correoEnviado = true;
-            } catch (emailError) {
-                // El error ya se loguea dentro de emailService
-            }
-            
-            // --- Lógica para Notificaciones en UI (Socket.IO) ---
-            try {
-                // Ahora 'io' está definido porque es un argumento de la función
-                io.emit('recordatorio_cita', {
-                    title: `Recordatorio: ${cita.titulo}`,
-                    message: `Tu cita es en menos de 15 minutos.`
-                });
-                eventoSocketEnviado = true;
-                console.log(`[Socket.IO] Evento 'recordatorio_cita' emitido para la cita ${cita.id}`);
-            } catch (socketError) {
-                console.error(`[Socket.IO Error] No se pudo emitir el evento para la cita ${cita.id}:`, socketError);
-            }
+                // Si la notificación push fue exitosa, procedemos con los otros canales.
+                if (notificacionEnviada) {
+                    // Enviar correo electrónico
+                    enviarCorreoRecordatorio(usuario, cita).catch(console.error);
 
+                    // Enviar notificación a la UI a través de Socket.IO
+                    io.emit('recordatorio_cita', payload);
 
-            // --- Marcar la cita como notificada ---
-            if (notificacionPushEnviada || correoEnviado || eventoSocketEnviado) {
+                    // Finalmente, marcamos la cita como notificada para no volver a enviarla.
+                    await cita.update({ recordatorioEnviado: true });
+                    console.log(`[Scheduler] Recordatorios procesados para la cita ${cita.id}`);
+                }
+                
+            } catch (error) {
+                console.error(`[Push/Email Error] al procesar para el usuario ${usuario.id}:`, error.response?.data || error.message);
+                
+                // Si el error es porque el token del dispositivo ya no es válido, lo borramos.
+                if (error.response?.data?.details?.error === 'DeviceNotRegistered') {
+                    console.log(`[Push] Eliminando token inválido para el usuario ${usuario.id}.`);
+                    await Usuario.update({ pushSubscription: null }, { where: { id: usuario.id } });
+                }
+                // Marcamos la cita como notificada de todos modos para no quedar en un bucle de error.
                 await cita.update({ recordatorioEnviado: true });
-                console.log(`[Scheduler] Recordatorios procesados para la cita ${cita.id}`);
             }
         }
     } catch (error) {
