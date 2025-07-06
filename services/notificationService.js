@@ -16,6 +16,8 @@ const enviarNotificacionExpo = async (expoPushToken, cita) => {
         title: `🔔 Recordatorio: ${cita.titulo}`,
         body: `Tu cita es a las ${new Date(cita.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.`,
         data: { citaId: cita.id }, // Puedes enviar datos adicionales
+        vibrate: true, // Pide explícitamente una vibración
+        channelId: 'default',
     };
 
     try {
@@ -39,7 +41,7 @@ const enviarNotificacionExpo = async (expoPushToken, cita) => {
 export const revisarYEnviarRecordatorios = async (io) => {
 
     console.log(`[Scheduler] Ejecutando tarea de revisión de citas... ${new Date().toLocaleTimeString()}`);
-    
+
     try {
         const ahora = new Date();
         const limiteSuperior = new Date(ahora.getTime() + 15 * 60 * 1000);
@@ -71,7 +73,7 @@ export const revisarYEnviarRecordatorios = async (io) => {
             let correoEnviado = false;
             let eventoSocketEnviado = false;
 
-             // --- LÓGICA DE NOTIFICACIÓN MULTICANAL MEJORADA ---
+            // --- LÓGICA DE NOTIFICACIÓN MULTICANAL MEJORADA ---
 
             // 1. Notificación Push Web (si existe suscripción web)
             if (usuario.pushSubscription.web?.endpoint) {
@@ -102,7 +104,7 @@ export const revisarYEnviarRecordatorios = async (io) => {
             } catch (emailError) {
                 // El error ya se loguea dentro de emailService
             }
-            
+
             // --- Lógica para Notificaciones en UI (Socket.IO) ---
             try {
                 // Ahora 'io' está definido porque es un argumento de la función
