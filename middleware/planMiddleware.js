@@ -16,7 +16,7 @@ export const verificarPlanActivo = async (req, res, next) => {
         }
 
         const usuario = await Usuario.findByPk(req.usuarioId, {
-            attributes: ['plan'] // Solo necesitamos saber el plan, es más eficiente.
+            attributes: ['plan', 'citasCreadas'] // Solo necesitamos saber el plan, es más eficiente.
         });
 
         if (!usuario) {
@@ -24,13 +24,18 @@ export const verificarPlanActivo = async (req, res, next) => {
         }
 
         // Verificamos si el plan NO es 'free'.
-        if (usuario.plan === 'pro' || usuario.plan === 'trial') {
-            next(); // El usuario tiene un plan activo, puede continuar.
-        } else {
-            // El usuario es 'free', le denegamos el acceso.
-            res.status(403).json({ message: 'Acceso denegado. Esta función requiere una suscripción Pro.' });
+        if (usuario.plan === 'pro') {
+            return next(); // El usuario tiene un plan activo, puede continuar.
         }
+        const LIMITE_CITAS = 5;
 
+        if (usuario.citasCreadas >= LIMITE_CITAS) {
+            return res.status(403).json({
+                mensage: `Has alcanzado el limite de ${LIMITE_CITAS} citas permitidas en tu plan.`,
+                reason: 'limit_reached'
+            });
+        }
+       next();
     } catch (error) {
         console.error("Error en el middleware de verificación de plan:", error);
         res.status(500).json({ message: "Error interno del servidor." });

@@ -9,7 +9,7 @@ import { protegerRuta } from '../middleware/authMiddleware.js';
 import { limitarCitasParaPlanFree } from '../middleware/planMiddleware.js'; 
 // Importamos la función específica para enviar el correo de confirmación
 import { enviarCorreoConfirmacion } from '../services/emailService.js';
-
+import { sequelize } from '../models/index.js'; 
 const router = express.Router();
 
 // Aplicamos el middleware de protección a TODAS las rutas de este archivo.
@@ -32,16 +32,28 @@ router.get('/', async (req, res) => {
 
 // === POST /api/citas -> Crear una nueva cita y enviar correo de confirmación ===
 router.post('/', limitarCitasParaPlanFree, async (req, res) => {
+      const t = await sequelize.transaction();
     try {
         const { titulo, fecha, descripcion } = req.body;
         
         // Creamos la cita asociándola al usuario logueado
+          // 1. Creamos la cita dentro de la transacción
         const nuevaCita = await Cita.create({
             titulo,
             fecha,
             descripcion,
             usuarioId: req.usuarioId 
+        }, { transaction: t });
+
+        // 2. Incrementamos el contador del usuario en 1, también dentro de la transacción
+        await Usuario.increment('citasCreadas', { 
+            by: 1, 
+            where: { id: req.usuarioId },
+            transaction: t
         });
+
+        // 3. Si todo va bien, confirmamos la transacción
+        await t.commit();
 
         // --- INICIO DE LA NUEVA FUNCIONALIDAD: ENVIAR CORREO ---
         // Después de crear la cita con éxito, buscamos los datos del usuario para el correo.
@@ -61,6 +73,7 @@ router.post('/', limitarCitasParaPlanFree, async (req, res) => {
         res.status(201).json(nuevaCita);
 
     } catch (error) {
+         await t.rollback();
         console.error("ERROR DETALLADO AL CREAR CITA:", error);
         res.status(400).json({ message: 'Error al crear la cita', error: error.message });
     }

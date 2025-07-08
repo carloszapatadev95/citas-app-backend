@@ -41,6 +41,11 @@ const Usuario = sequelize.define('Usuario', {
     idSuscripcionTienda: {
         type: DataTypes.JSON,
         allowNull: true,
+    },
+     citasCreadas: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0, // Todo usuario empieza con 0 citas creadas
+        allowNull: false
     }
 }, {
     tableName: 'usuarios',
