@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', verificarLimiteDeCitas, async (req, res) => {
-// --- FIN DE LA CORRECCIÓN ---
+
     const t = await sequelize.transaction();
     try {
         const { titulo, fecha, descripcion } = req.body;
@@ -62,7 +62,7 @@ router.post('/', verificarLimiteDeCitas, async (req, res) => {
 });
 
 // === PUT /api/citas/:id -> Actualizar una cita existente y reactivar recordatorios ===
-router.put('/:id', async (req, res) => {
+router.put('/:id', verificarLimiteDeCitas, async (req, res) => {
     try {
         const cita = await Cita.findOne({ where: { id: req.params.id, usuarioId: req.usuarioId } });
 
